@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Go Game Timer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --b: 0; /* black lightness */
+            --w: 100%; /* white lightness */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: contain;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .timer-face {
+            font-variant-numeric: tabular-nums;
+        }
+        .config-view, .timer-view {
+            min-height: 100vh;
+            min-height: 100dvh; /* Dynamic viewport height */
+        }
+        .player-area {
+            transition: background-color 0.2s ease-in-out;
+        }
+        .player-white {
+            transform: rotate(180deg);
+        }
+        .status-white {
+            transform: rotate(180deg);
+        }
+        .pause-button {
+            z-index: 10;
+        }
+        .time-out {
+            background-color: #EF4444 !important; /* red-500 */
+        }
+        .low-time {
+             animation: pulse-red 1s infinite;
+        }
+        @keyframes pulse-red {
+            0%, 100% { background-color: hsl(0, 0%, var(--b)); color: white; }
+            50% { background-color: #b91c1c; color: white; }
+        }
+        .player-white .low-time {
+             animation: pulse-red-white 1s infinite;
+        }
+        @keyframes pulse-red-white {
+            0%, 100% { background-color: hsl(0, 0%, var(--w)); color: black; }
+            50% { background-color: #b91c1c; color: white; }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white select-none">
+
+    <!-- Configuration View -->
+    <div id="config-view" class="config-view p-6 max-w-md mx-auto flex flex-col justify-center">
+        <h1 class="text-4xl font-bold text-center mb-8">Go Timer</h1>
+
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-lg">
+            <label for="main-time" class="block text-sm font-medium text-gray-300">Main Time (minutes)</label>
+            <input type="number" id="main-time" value="25" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-2xl p-3 text-center">
+
+            <div class="mt-6">
+                <label class="block text-sm font-medium text-gray-300">Time System</label>
+                <div class="mt-2 grid grid-cols-2 gap-4">
+                    <button id="fisher-btn" class="time-setting-btn bg-blue-600 p-4 rounded-lg text-lg font-semibold">Fisher</button>
+                    <button id="byoyomi-btn" class="time-setting-btn bg-gray-700 p-4 rounded-lg text-lg font-semibold">Byo-Yomi</button>
+                </div>
+            </div>
+
+            <!-- Fisher Settings -->
+            <div id="fisher-settings" class="mt-6">
+                <label for="fisher-increment" class="block text-sm font-medium text-gray-300">Increment (seconds)</label>
+                <input type="number" id="fisher-increment" value="10" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-2xl p-3 text-center">
+            </div>
+
+            <!-- Byo-Yomi Settings -->
+            <div id="byoyomi-settings" class="mt-6 hidden">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="byoyomi-periods" class="block text-sm font-medium text-gray-300">Periods</label>
+                        <input type="number" id="byoyomi-periods" value="5" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-2xl p-3 text-center">
+                    </div>
+                    <div>
+                        <label for="byoyomi-period-time" class="block text-sm font-medium text-gray-300">Time (sec)</label>
+                        <input type="number" id="byoyomi-period-time" value="30" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-2xl p-3 text-center">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button id="start-btn" class="mt-8 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-xl text-2xl shadow-lg transition-transform transform hover:scale-105">
+            Start Game
+        </button>
+    </div>
+
+    <!-- Timer View -->
+    <div id="timer-view" class="timer-view hidden w-full h-full fixed top-0 left-0">
+        <!-- White Player -->
+        <div id="white-area" class="player-area player-white w-full h-1/2 bg-gray-100 text-black flex flex-col justify-center items-center">
+            <div id="white-main-time" class="timer-face text-8xl md:text-9xl font-bold">00:00</div>
+            <div id="white-byoyomi" class="text-4xl md:text-5xl font-semibold mt-4"></div>
+        </div>
+
+        <!-- Black Player -->
+        <div id="black-area" class="player-area w-full h-1/2 bg-black text-white flex flex-col justify-center items-center">
+            <div id="black-main-time" class="timer-face text-8xl md:text-9xl font-bold">00:00</div>
+            <div id="black-byoyomi" class="text-4xl md:text-5xl font-semibold mt-4"></div>
+        </div>
+        
+        <!-- Center Controls -->
+        <div class="pause-button absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-4">
+             <button id="pause-btn" class="bg-gray-500 bg-opacity-80 text-white rounded-full w-24 h-24 flex items-center justify-center text-4xl shadow-2xl">
+                <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-pause-fill" viewBox="0 0 16 16">
+                    <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/>
+                </svg>
+                <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-play-fill hidden" viewBox="0 0 16 16">
+                    <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+                </svg>
+            </button>
+             <button id="reset-btn" class="bg-gray-500 bg-opacity-80 text-white rounded-full w-24 h-24 flex items-center justify-center text-4xl shadow-2xl hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-arrow-counterclockwise" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
+                    <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Status Message -->
+        <div id="status-message" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center hidden text-5xl font-bold p-8 rounded-2xl bg-black bg-opacity-70 text-white">
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM ELEMENTS ---
+            const configView = document.getElementById('config-view');
+            const timerView = document.getElementById('timer-view');
+
+            const mainTimeInput = document.getElementById('main-time');
+            const fisherBtn = document.getElementById('fisher-btn');
+            const byoyomiBtn = document.getElementById('byoyomi-btn');
+            const fisherSettings = document.getElementById('fisher-settings');
+            const byoyomiSettings = document.getElementById('byoyomi-settings');
+            const fisherIncrementInput = document.getElementById('fisher-increment');
+            const byoyomiPeriodsInput = document.getElementById('byoyomi-periods');
+            const byoyomiPeriodTimeInput = document.getElementById('byoyomi-period-time');
+            const startBtn = document.getElementById('start-btn');
+
+            const whiteArea = document.getElementById('white-area');
+            const blackArea = document.getElementById('black-area');
+            const whiteMainTimeEl = document.getElementById('white-main-time');
+            const blackMainTimeEl = document.getElementById('black-main-time');
+            const whiteByoyomiEl = document.getElementById('white-byoyomi');
+            const blackByoyomiEl = document.getElementById('black-byoyomi');
+            
+            const pauseBtn = document.getElementById('pause-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const pauseIcon = document.getElementById('pause-icon');
+            const playIcon = document.getElementById('play-icon');
+            const statusMessageEl = document.getElementById('status-message');
+
+            // --- STATE ---
+            let timeSettings = {
+                mode: 'fisher', // 'fisher' or 'byoyomi'
+                mainTime: 25 * 60,
+                fisherIncrement: 10,
+                byoyomiPeriods: 5,
+                byoyomiPeriodTime: 30
+            };
+            let playerTimes = {
+                white: { main: 0, periods: 0 },
+                black: { main: 0, periods: 0 }
+            };
+            let gameState = 'initial'; // 'initial', 'running', 'paused', 'finished'
+            let currentPlayer = 'black';
+            let timerInterval;
+            
+            // --- AUDIO ---
+            let synth, lowTimeSynth;
+            if (window.Tone) {
+                synth = new Tone.Synth({
+                    oscillator: { type: 'sine' },
+                    envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.1 }
+                }).toDestination();
+
+                lowTimeSynth = new Tone.NoiseSynth({
+                    noise: { type: 'white' },
+                    envelope: { attack: 0.005, decay: 0.05, sustain: 0, release: 0.1 }
+                }).toDestination();
+            }
+
+            // --- CONFIGURATION VIEW LOGIC ---
+            fisherBtn.addEventListener('click', () => setTimeMode('fisher'));
+            byoyomiBtn.addEventListener('click', () => setTimeMode('byoyomi'));
+            startBtn.addEventListener('click', startGame);
+            
+            function setTimeMode(mode) {
+                timeSettings.mode = mode;
+                if (mode === 'fisher') {
+                    fisherBtn.classList.replace('bg-gray-700', 'bg-blue-600');
+                    byoyomiBtn.classList.replace('bg-blue-600', 'bg-gray-700');
+                    fisherSettings.classList.remove('hidden');
+                    byoyomiSettings.classList.add('hidden');
+                } else {
+                    byoyomiBtn.classList.replace('bg-gray-700', 'bg-blue-600');
+                    fisherBtn.classList.replace('bg-blue-600', 'bg-gray-700');
+                    byoyomiSettings.classList.remove('hidden');
+                    fisherSettings.classList.add('hidden');
+                }
+            }
+            
+            function startGame() {
+                // Prevent accidental double-clicks from starting multiple sound contexts
+                if (Tone.context.state !== 'running') {
+                    Tone.start();
+                }
+
+                // Gather settings
+                timeSettings.mainTime = parseInt(mainTimeInput.value) * 60;
+                timeSettings.fisherIncrement = parseInt(fisherIncrementInput.value);
+                timeSettings.byoyomiPeriods = parseInt(byoyomiPeriodsInput.value);
+                timeSettings.byoyomiPeriodTime = parseInt(byoyomiPeriodTimeInput.value);
+
+                // Initialize player times
+                playerTimes.white.main = timeSettings.mainTime;
+                playerTimes.black.main = timeSettings.mainTime;
+                playerTimes.white.periods = timeSettings.byoyomiPeriods;
+                playerTimes.black.periods = timeSettings.byoyomiPeriods;
+
+                // Switch views
+                configView.classList.add('hidden');
+                timerView.classList.remove('hidden');
+
+                // Initialize display
+                updateAllDisplays();
+                
+                // Set initial state
+                gameState = 'running';
+                currentPlayer = 'black';
+                startTimer();
+                updateActivePlayer();
+            }
+            
+            // --- TIMER VIEW LOGIC ---
+            whiteArea.addEventListener('click', () => handlePlayerTap('white'));
+            blackArea.addEventListener('click', () => handlePlayerTap('black'));
+            pauseBtn.addEventListener('click', togglePause);
+            resetBtn.addEventListener('click', resetGame);
+            
+            function handlePlayerTap(player) {
+                if (gameState !== 'running' || player !== currentPlayer) return;
+                
+                if (synth) synth.triggerAttackRelease("C5", "8n");
+
+                // Apply Fisher increment if applicable
+                if (timeSettings.mode === 'fisher' && playerTimes[player].main > 0) {
+                    playerTimes[player].main += timeSettings.fisherIncrement;
+                }
+                
+                // Switch player
+                currentPlayer = (player === 'white') ? 'black' : 'white';
+                
+                startTimer();
+                updateActivePlayer();
+            }
+            
+            function togglePause() {
+                if (gameState === 'finished') return;
+                
+                gameState = (gameState === 'running') ? 'paused' : 'running';
+                
+                if (gameState === 'paused') {
+                    clearInterval(timerInterval);
+                    pauseIcon.classList.add('hidden');
+                    playIcon.classList.remove('hidden');
+                    resetBtn.classList.remove('hidden');
+                    pauseBtn.classList.add('bg-blue-600');
+
+                } else { // running
+                    startTimer();
+                    playIcon.classList.add('hidden');
+                    pauseIcon.classList.remove('hidden');
+                    resetBtn.classList.add('hidden');
+                    pauseBtn.classList.remove('bg-blue-600');
+                }
+            }
+
+            function resetGame() {
+                clearInterval(timerInterval);
+                gameState = 'initial';
+                
+                timerView.classList.add('hidden');
+                configView.classList.remove('hidden');
+
+                // Reset UI elements
+                statusMessageEl.classList.add('hidden');
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+                resetBtn.classList.add('hidden');
+                pauseBtn.classList.remove('bg-blue-600');
+                whiteArea.classList.remove('time-out', 'low-time');
+                blackArea.classList.remove('time-out', 'low-time');
+            }
+
+            function startTimer() {
+                clearInterval(timerInterval);
+                const startTime = Date.now();
+                
+                timerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - startTime) / 1000); // Recalculate each tick
+                    tick();
+                }, 100);
+            }
+            
+            function tick() {
+                if (gameState !== 'running') return;
+                
+                const player = playerTimes[currentPlayer];
+                
+                if (player.main > 0) {
+                    player.main -= 0.1;
+                } else {
+                    // Main time is out, use byoyomi
+                    if (timeSettings.mode === 'byoyomi') {
+                        if (player.periods > 0) {
+                            if (!player.byoyomiCountdown) {
+                                player.byoyomiCountdown = timeSettings.byoyomiPeriodTime;
+                                player.periods--;
+                            }
+                            player.byoyomiCountdown -= 0.1;
+                            
+                            if (player.byoyomiCountdown <= 0) {
+                                // Period is used up, check if more periods left
+                                if (player.periods > 0) {
+                                    player.byoyomiCountdown = timeSettings.byoyomiPeriodTime;
+                                     player.periods--;
+                                } else {
+                                    // No periods left
+                                    player.byoyomiCountdown = 0;
+                                    endGame(currentPlayer);
+                                }
+                            }
+                        } else {
+                            endGame(currentPlayer);
+                        }
+                    } else { // Fisher or Canadian, no main time left
+                        endGame(currentPlayer);
+                    }
+                }
+                updateAllDisplays();
+                checkLowTime();
+            }
+
+            function endGame(loser) {
+                clearInterval(timerInterval);
+                gameState = 'finished';
+                const winner = (loser === 'white') ? 'Black' : 'White';
+                
+                if (loser === 'white') {
+                    whiteArea.classList.add('time-out');
+                } else {
+                    blackArea.classList.add('time-out');
+                }
+                
+                statusMessageEl.innerHTML = `${winner} wins on time!`;
+                statusMessageEl.classList.remove('hidden');
+                
+                pauseBtn.classList.add('hidden');
+                resetBtn.classList.remove('hidden');
+            }
+
+            // --- DISPLAY & UI UPDATES ---
+            function formatTime(seconds) {
+                if (seconds < 0) seconds = 0;
+                const min = Math.floor(seconds / 60);
+                const sec = Math.floor(seconds % 60);
+                return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+            }
+
+            function updateAllDisplays() {
+                // White Player
+                whiteMainTimeEl.textContent = formatTime(playerTimes.white.main);
+                if (timeSettings.mode === 'byoyomi' && playerTimes.white.main <= 0) {
+                    const time = playerTimes.white.byoyomiCountdown !== undefined ? Math.ceil(playerTimes.white.byoyomiCountdown) : timeSettings.byoyomiPeriodTime;
+                    whiteByoyomiEl.textContent = `${time}s (${playerTimes.white.periods + 1})`;
+                    whiteMainTimeEl.classList.add('text-gray-500');
+                } else {
+                    whiteByoyomiEl.textContent = '';
+                     whiteMainTimeEl.classList.remove('text-gray-500');
+                }
+
+                // Black Player
+                blackMainTimeEl.textContent = formatTime(playerTimes.black.main);
+                if (timeSettings.mode === 'byoyomi' && playerTimes.black.main <= 0) {
+                    const time = playerTimes.black.byoyomiCountdown !== undefined ? Math.ceil(playerTimes.black.byoyomiCountdown) : timeSettings.byoyomiPeriodTime;
+                    blackByoyomiEl.textContent = `${time}s (${playerTimes.black.periods + 1})`;
+                    blackMainTimeEl.classList.add('text-gray-500');
+                } else {
+                    blackByoyomiEl.textContent = '';
+                    blackMainTimeEl.classList.remove('text-gray-500');
+                }
+            }
+            
+            let lastBeepTime = {};
+
+            function checkLowTime() {
+                const player = playerTimes[currentPlayer];
+                const area = (currentPlayer === 'white') ? whiteArea : blackArea;
+                
+                let isLowTime = false;
+                let effectiveTime = player.main;
+
+                if (timeSettings.mode === 'byoyomi' && player.main <= 0) {
+                     effectiveTime = player.byoyomiCountdown || timeSettings.byoyomiPeriodTime;
+                }
+
+                if (effectiveTime > 0 && effectiveTime <= 10.5) {
+                    isLowTime = true;
+                    const timeFloor = Math.floor(effectiveTime);
+                    if (lowTimeSynth && (!lastBeepTime[currentPlayer] || lastBeepTime[currentPlayer] !== timeFloor)) {
+                         lowTimeSynth.triggerAttackRelease("0.05");
+                         lastBeepTime[currentPlayer] = timeFloor;
+                    }
+                }
+
+                if (isLowTime) {
+                    area.classList.add('low-time');
+                } else {
+                    area.classList.remove('low-time');
+                    lastBeepTime[currentPlayer] = null;
+                }
+            }
+
+            function updateActivePlayer() {
+                if (gameState !== 'running') {
+                    blackArea.style.setProperty('--b', '0');
+                    whiteArea.style.setProperty('--w', '100%');
+                    return;
+                }
+                if (currentPlayer === 'black') {
+                    blackArea.style.setProperty('--b', '20%'); /* Darken slightly */
+                    whiteArea.style.setProperty('--w', '100%'); /* Reset */
+                    whiteArea.classList.remove('low-time');
+                } else {
+                    whiteArea.style.setProperty('--w', '80%'); /* Darken slightly */
+                    blackArea.style.setProperty('--b', '0'); /* Reset */
+                    blackArea.classList.remove('low-time');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
