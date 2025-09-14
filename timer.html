@@ -294,6 +294,10 @@
                 if (timeSettings.mode === 'fisher' && playerTimes[player].main > 0) {
                     playerTimes[player].main += timeSettings.fisherIncrement;
                 }
+
+                // Remove low-time class from player who moved
+                const movedPlayerArea = (player === 'white') ? whiteArea : blackArea;
+                movedPlayerArea.classList.remove('low-time');
                 
                 // Switch player
                 currentPlayer = (player === 'white') ? 'black' : 'white';
@@ -313,6 +317,8 @@
                     playIcon.classList.remove('hidden');
                     resetBtn.classList.remove('hidden');
                     pauseBtn.classList.add('bg-blue-600');
+                    whiteArea.classList.remove('low-time');
+                    blackArea.classList.remove('low-time');
 
                 } else { // running
                     startTimer();
@@ -320,6 +326,7 @@
                     pauseIcon.classList.remove('hidden');
                     resetBtn.classList.add('hidden');
                     pauseBtn.classList.remove('bg-blue-600');
+                    checkLowTime();
                 }
             }
 
@@ -480,7 +487,7 @@
                 } else {
                     whiteArea.style.setProperty('--w', '80%'); /* Darken slightly */
                     blackArea.style.setProperty('--b', '0'); /* Reset */
-                    blackArea.classList.remove('low-.idea/...time');
+                    blackArea.classList.remove('low-time');
                 }
             }
 
