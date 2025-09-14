@@ -138,7 +138,9 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', init);
+
+        function init() {
             // --- DOM ELEMENTS ---
             const configView = document.getElementById('config-view');
             const timerView = document.getElementById('timer-view');
@@ -184,23 +186,13 @@
             
             // --- AUDIO ---
             let synth, lowTimeSynth;
-            if (window.Tone) {
-                synth = new Tone.Synth({
-                    oscillator: { type: 'sine' },
-                    envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.1 }
-                }).toDestination();
 
-                lowTimeSynth = new Tone.NoiseSynth({
-                    noise: { type: 'white' },
-                    envelope: { attack: 0.005, decay: 0.05, sustain: 0, release: 0.1 }
-                }).toDestination();
-            }
+            // --- INITIALIZATION ---
+            initConfigurationView();
+            initTimerView();
+            initAudio();
+            loadSettingsFromUrl();
 
-            // --- CONFIGURATION VIEW LOGIC ---
-            fisherBtn.addEventListener('click', () => setTimeMode('fisher'));
-            byoyomiBtn.addEventListener('click', () => setTimeMode('byoyomi'));
-            startBtn.addEventListener('click', startGame);
-            
             function setTimeMode(mode) {
                 timeSettings.mode = mode;
                 if (mode === 'fisher') {
@@ -215,10 +207,10 @@
                     fisherSettings.classList.add('hidden');
                 }
             }
-            
+
             function startGame() {
                 // Prevent accidental double-clicks from starting multiple sound contexts
-                if (Tone.context.state !== 'running') {
+                if (window.Tone && Tone.context.state !== 'running') {
                     Tone.start();
                 }
 
@@ -250,12 +242,43 @@
                 startTimer();
                 updateActivePlayer();
             }
-            
-            // --- TIMER VIEW LOGIC ---
-            whiteArea.addEventListener('click', () => handlePlayerTap('white'));
-            blackArea.addEventListener('click', () => handlePlayerTap('black'));
-            pauseBtn.addEventListener('click', togglePause);
-            resetBtn.addEventListener('click', resetGame);
+
+            function initConfigurationView() {
+                fisherBtn.addEventListener('click', () => {
+                    setTimeMode('fisher');
+                    updateUrlSettings();
+                });
+                byoyomiBtn.addEventListener('click', () => {
+                    setTimeMode('byoyomi');
+                    updateUrlSettings();
+                });
+                startBtn.addEventListener('click', startGame);
+                mainTimeInput.addEventListener('input', updateUrlSettings);
+                fisherIncrementInput.addEventListener('input', updateUrlSettings);
+                byoyomiPeriodsInput.addEventListener('input', updateUrlSettings);
+                byoyomiPeriodTimeInput.addEventListener('input', updateUrlSettings);
+            }
+
+            function initTimerView() {
+                whiteArea.addEventListener('click', () => handlePlayerTap('white'));
+                blackArea.addEventListener('click', () => handlePlayerTap('black'));
+                pauseBtn.addEventListener('click', togglePause);
+                resetBtn.addEventListener('click', resetGame);
+            }
+
+            function initAudio() {
+                if (window.Tone) {
+                    synth = new Tone.Synth({
+                        oscillator: { type: 'sine' },
+                        envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.1 }
+                    }).toDestination();
+
+                    lowTimeSynth = new Tone.NoiseSynth({
+                        noise: { type: 'white' },
+                        envelope: { attack: 0.005, decay: 0.05, sustain: 0, release: 0.1 }
+                    }).toDestination();
+                }
+            }
             
             function handlePlayerTap(player) {
                 if (gameState !== 'running' || player !== currentPlayer) return;
@@ -457,10 +480,50 @@
                 } else {
                     whiteArea.style.setProperty('--w', '80%'); /* Darken slightly */
                     blackArea.style.setProperty('--b', '0'); /* Reset */
-                    blackArea.classList.remove('low-time');
+                    blackArea.classList.remove('low-.idea/...time');
                 }
             }
-        });
+
+            function updateUrlSettings() {
+                const params = new URLSearchParams();
+                params.set('mainTime', mainTimeInput.value);
+                params.set('mode', timeSettings.mode);
+                if (timeSettings.mode === 'fisher') {
+                    params.set('increment', fisherIncrementInput.value);
+                } else {
+                    params.set('periods', byoyomiPeriodsInput.value);
+                    params.set('periodTime', byoyomiPeriodTimeInput.value);
+                }
+                window.history.replaceState({}, '', `${window.location.pathname}?${params}`);
+            }
+
+            function loadSettingsFromUrl() {
+                const params = new URLSearchParams(window.location.search);
+                const mainTime = params.get('mainTime');
+                const mode = params.get('mode');
+                const increment = params.get('increment');
+                const periods = params.get('periods');
+                const periodTime = params.get('periodTime');
+
+                if (mainTime) {
+                    mainTimeInput.value = mainTime;
+                }
+                if (mode) {
+                    setTimeMode(mode);
+                }
+                if (increment) {
+                    fisherIncrementInput.value = increment;
+                }
+                if (periods) {
+                    byoyomiPeriodsInput.value = periods;
+                }
+                if (periodTime) {
+                    byoyomiPeriodTimeInput.value = periodTime;
+                }
+            }
+
+            loadSettingsFromUrl();
+        }
     </script>
 </body>
 </html>
