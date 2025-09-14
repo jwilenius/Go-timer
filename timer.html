@@ -233,6 +233,9 @@
                 playerTimes.black.main = timeSettings.mainTime;
                 playerTimes.white.periods = timeSettings.byoyomiPeriods;
                 playerTimes.black.periods = timeSettings.byoyomiPeriods;
+                // Pre-set byoyomi countdown to ensure display is correct from the start
+                playerTimes.white.byoyomiCountdown = timeSettings.byoyomiPeriodTime;
+                playerTimes.black.byoyomiCountdown = timeSettings.byoyomiPeriodTime;
 
                 // Switch views
                 configView.classList.add('hidden');
@@ -258,6 +261,11 @@
                 if (gameState !== 'running' || player !== currentPlayer) return;
                 
                 if (synth) synth.triggerAttackRelease("C5", "8n");
+
+                const movedPlayer = playerTimes[player];
+                if (timeSettings.mode === 'byoyomi' && movedPlayer.main <= 0) {
+                    movedPlayer.byoyomiCountdown = timeSettings.byoyomiPeriodTime;
+                }
 
                 // Apply Fisher increment if applicable
                 if (timeSettings.mode === 'fisher' && playerTimes[player].main > 0) {
@@ -330,19 +338,17 @@
                     // Main time is out, use byoyomi
                     if (timeSettings.mode === 'byoyomi') {
                         if (player.periods > 0) {
-                            if (!player.byoyomiCountdown) {
+                            if (player.byoyomiCountdown === undefined) { // Should not happen due to pre-setting
                                 player.byoyomiCountdown = timeSettings.byoyomiPeriodTime;
-                                player.periods--;
                             }
+                            
                             player.byoyomiCountdown -= 0.1;
                             
                             if (player.byoyomiCountdown <= 0) {
-                                // Period is used up, check if more periods left
+                                player.periods--;
                                 if (player.periods > 0) {
                                     player.byoyomiCountdown = timeSettings.byoyomiPeriodTime;
-                                     player.periods--;
                                 } else {
-                                    // No periods left
                                     player.byoyomiCountdown = 0;
                                     endGame(currentPlayer);
                                 }
@@ -389,7 +395,7 @@
                 whiteMainTimeEl.textContent = formatTime(playerTimes.white.main);
                 if (timeSettings.mode === 'byoyomi' && playerTimes.white.main <= 0) {
                     const time = playerTimes.white.byoyomiCountdown !== undefined ? Math.ceil(playerTimes.white.byoyomiCountdown) : timeSettings.byoyomiPeriodTime;
-                    whiteByoyomiEl.textContent = `${time}s (${playerTimes.white.periods + 1})`;
+                    whiteByoyomiEl.textContent = `${time}s (${playerTimes.white.periods})`;
                     whiteMainTimeEl.classList.add('text-gray-500');
                 } else {
                     whiteByoyomiEl.textContent = '';
@@ -400,7 +406,7 @@
                 blackMainTimeEl.textContent = formatTime(playerTimes.black.main);
                 if (timeSettings.mode === 'byoyomi' && playerTimes.black.main <= 0) {
                     const time = playerTimes.black.byoyomiCountdown !== undefined ? Math.ceil(playerTimes.black.byoyomiCountdown) : timeSettings.byoyomiPeriodTime;
-                    blackByoyomiEl.textContent = `${time}s (${playerTimes.black.periods + 1})`;
+                    blackByoyomiEl.textContent = `${time}s (${playerTimes.black.periods})`;
                     blackMainTimeEl.classList.add('text-gray-500');
                 } else {
                     blackByoyomiEl.textContent = '';
